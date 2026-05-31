@@ -3,170 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gene-Positive Prediction Calculator</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <title>Gene-Positive Status Predictor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
     <style>
-        body { background: #f8f9fa; font-family: Arial, sans-serif; padding: 20px; }
-        .container { max-width: 900px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; }
-        .form-label { font-weight: bold; }
-        .result-card { margin-top: 20px; padding: 20px; border-radius: 8px; }
-        #resultsContainer { display: none; }
+        body {
+            background-color: #f8f9fa;
+            font-family: Arial, sans-serif;
+            padding-top: 50px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        button {
+            width: 100%;
+            margin-top: 20px;
+        }
+        #result {
+            margin-top: 30px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Gene-Positive Status Prediction</h2>
-        <form id="predForm">
-
-            <!-- 模型选择（复选框） -->
+        <h1>Gene-Positive Status Predictor</h1>
+        <form id="predictionForm">
             <div class="mb-3">
-                <label class="form-label">Select Model(s)</label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="showAL" checked>
-                    <label class="form-check-label" for="showAL">
-                        AL Model (AL + Parents)
-                    </label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="showSER" checked>
-                    <label class="form-check-label" for="showSER">
-                        SER Model (SER + Parents)
-                    </label>
-                </div>
+                <label for="modelGroup">Choose Model:</label>
+                <select id="modelGroup" class="form-select" onchange="toggleInputField()">
+                    <option value="al_model">AL Model (AL + Parental Myopia)</option>
+                    <option value="ser_model">SER Model (SER + Parental Myopia)</option>
+                </select>
+            </div>
+
+            <div class="mb-3" id="alField">
+                <label for="alInput">Baseline AL (mm):</label>
+                <input type="number" id="alInput" class="form-control" step="0.01">
+            </div>
+
+            <div class="mb-3" id="serField" style="display: none;">
+                <label for="serInput">Baseline SER (D):</label>
+                <input type="number" id="serInput" class="form-control" step="0.01">
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Baseline AL (mm)</label>
-                <input type="number" step="0.01" class="form-control" id="al" required>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Baseline SER (D)</label>
-                <input type="number" step="0.01" class="form-control" id="ser" required>
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label">Parents with high myopia</label>
-                <select id="parent" class="form-select">
+                <label for="parentInput">Number of parents with high myopia:</label>
+                <select id="parentInput" class="form-select">
                     <option value="0">0</option>
                     <option value="1">1</option>
                     <option value="2">2</option>
                 </select>
             </div>
 
-            <button type="submit" class="btn btn-primary w-100">Calculate</button>
+            <button type="submit" class="btn btn-primary">Calculate Probability</button>
         </form>
 
-        <div id="resultsContainer" class="mt-4">
-            <!-- AL 模型结果 -->
-            <div id="cardAL" class="result-card bg-light border d-none">
-                <h5 class="text-primary"><strong>AL Model (AL + Parents)</strong></h5>
-                <p>Predicted probability: <strong id="prob1"></strong></p>
-                <p>95% CI: <strong id="ci1"></strong></p>
-                <p>Risk group: <strong id="risk1"></strong></p>
-            </div>
-
-            <!-- SER 模型结果 -->
-            <div id="cardSER" class="result-card bg-light border d-none mt-3">
-                <h5 class="text-danger"><strong>SER Model (SER + Parents)</strong></h5>
-                <p>Predicted probability: <strong id="prob2"></strong></p>
-                <p>95% CI: <strong id="ci2"></strong></p>
-                <p>Risk group: <strong id="risk2"></strong></p>
-            </div>
-        </div>
+        <div id="result" class="alert alert-info"></div>
     </div>
 
-<script>
-document.getElementById("predForm").addEventListener("submit", function(e) {
-    e.preventDefault();
+    <script>
+        // 模型系数（直接用你之前训练好的）
+        const modelCoefficients = {
+            al_model: {
+                intercept: -6.8254811,
+                coef_al: 0.2395629,
+                coef_parent1: 0.8192641,
+                coef_parent2: 3.2537814,
+                intercept_low: -9.6910197,
+                intercept_high: -4.0713708,
+                coef_al_low: 0.1308751,
+                coef_al_high: 0.3522766,
+                coef_parent1_low: 0.3670655,
+                coef_parent1_high: 1.2743566,
+                coef_parent2_low: 2.3871699,
+                coef_parent2_high: 4.3404146
+            },
+            ser_model: {
+                intercept: -1.6804534,
+                coef_ser: -0.1288331,
+                coef_parent1: 0.8771313,
+                coef_parent2: 3.3234844,
+                intercept_low: -2.1245372,
+                intercept_high: -1.26045732,
+                coef_ser_low: -0.1792309,
+                coef_ser_high: -0.08054952,
+                coef_parent1_low: 0.4191054,
+                coef_parent1_high: 1.33939522,
+                coef_parent2_low: 2.4514526,
+                coef_parent2_high: 4.41397944
+            }
+        };
 
-    let al = parseFloat(document.getElementById("al").value);
-    let ser = parseFloat(document.getElementById("ser").value);
-    let parent = parseInt(document.getElementById("parent").value);
-    let showAL = document.getElementById("showAL").checked;
-    let showSER = document.getElementById("showSER").checked;
+        // 切换输入框显示/隐藏
+        function toggleInputField() {
+            const model = document.getElementById('modelGroup').value;
+            const alField = document.getElementById('alField');
+            const serField = document.getElementById('serField');
 
-    let p1 = parent === 1 ? 1 : 0;
-    let p2 = parent === 2 ? 1 : 0;
+            if (model === 'al_model') {
+                alField.style.display = 'block';
+                serField.style.display = 'none';
+                document.getElementById('alInput').required = true;
+                document.getElementById('serInput').required = false;
+            } else {
+                alField.style.display = 'none';
+                serField.style.display = 'block';
+                document.getElementById('alInput').required = false;
+                document.getElementById('serInput').required = true;
+            }
+        }
 
-    // ==============================================
-    // MODEL 1 (AL)
-    // ==============================================
-    let intercept_m1 = -6.8254811;
-    let coef_al = 0.2395629;
-    let coef_p1_m1 = 0.8192641;
-    let coef_p2_m1 = 3.2537814;
+        document.getElementById('predictionForm').addEventListener('submit', function (event) {
+            event.preventDefault();
 
-    let int_low_m1  = -9.6910197;
-    let int_high_m1 = -4.0713708;
-    let al_low   = 0.1308751;
-    let al_high  = 0.3522766;
-    let p1_low_m1   = 0.3670655;
-    let p1_high_m1  = 1.2743566;
-    let p2_low_m1   = 2.3871699;
-    let p2_high_m1  = 4.3404146;
+            const model = document.getElementById('modelGroup').value;
+            const parent = parseInt(document.getElementById('parentInput').value, 10);
+            const parent1 = parent === 1 ? 1 : 0;
+            const parent2 = parent === 2 ? 1 : 0;
 
-    let logit_m1      = intercept_m1 + coef_al * al + coef_p1_m1 * p1 + coef_p2_m1 * p2;
-    let logit_low_m1  = int_low_m1   + al_low * al   + p1_low_m1 * p1   + p2_low_m1 * p2;
-    let logit_high_m1 = int_high_m1  + al_high * al  + p1_high_m1 * p1  + p2_high_m1 * p2;
+            const coefficients = modelCoefficients[model];
+            let logit, logit_low, logit_high;
 
-    let prob_m1      = 1 / (1 + Math.exp(-logit_m1));
-    let prob_low_m1  = 1 / (1 + Math.exp(-logit_low_m1));
-    let prob_high_m1 = 1 / (1 + Math.exp(-logit_high_m1));
-    let risk_m1 = prob_m1 < 0.3 ? "Low Risk" : prob_m1 < 0.6 ? "Intermediate Risk" : "High Risk";
+            if (model === 'al_model') {
+                const al = parseFloat(document.getElementById('alInput').value);
+                logit = coefficients.intercept + coefficients.coef_al * al + coefficients.coef_parent1 * parent1 + coefficients.coef_parent2 * parent2;
+                logit_low = coefficients.intercept_low + coefficients.coef_al_low * al + coefficients.coef_parent1_low * parent1 + coefficients.coef_parent2_low * parent2;
+                logit_high = coefficients.intercept_high + coefficients.coef_al_high * al + coefficients.coef_parent1_high * parent1 + coefficients.coef_parent2_high * parent2;
+            } else {
+                const ser = parseFloat(document.getElementById('serInput').value);
+                logit = coefficients.intercept + coefficients.coef_ser * ser + coefficients.coef_parent1 * parent1 + coefficients.coef_parent2 * parent2;
+                logit_low = coefficients.intercept_low + coefficients.coef_ser_low * ser + coefficients.coef_parent1_low * parent1 + coefficients.coef_parent2_low * parent2;
+                logit_high = coefficients.intercept_high + coefficients.coef_ser_high * ser + coefficients.coef_parent1_high * parent1 + coefficients.coef_parent2_high * parent2;
+            }
 
-    // ==============================================
-    // MODEL 2 (SER)
-    // ==============================================
-    let intercept_m2 = -1.6804534;
-    let coef_ser = -0.1288331;
-    let coef_p1_m2  = 0.8771313;
-    let coef_p2_m2  = 3.3234844;
+            const prob = 1 / (1 + Math.exp(-logit));
+            const prob_low = 1 / (1 + Math.exp(-logit_low));
+            const prob_high = 1 / (1 + Math.exp(-logit_high));
 
-    let int_low_m2  = -2.1245372;
-    let int_high_m2 = -1.26045732;
-    let ser_low  = -0.1792309;
-    let ser_high = -0.08054952;
-    let p1_low_m2   = 0.4191054;
-    let p1_high_m2  = 1.33939522;
-    let p2_low_m2   = 2.4514526;
-    let p2_high_m2  = 4.41397944;
+            const riskGroup = prob < 0.3 ? "Low Risk" : prob < 0.6 ? "Intermediate Risk" : "High Risk";
 
-    let logit_m2      = intercept_m2 + coef_ser * ser + coef_p1_m2 * p1 + coef_p2_m2 * p2;
-    let logit_low_m2  = int_low_m2   + ser_low * ser  + p1_low_m2 * p1  + p2_low_m2 * p2;
-    let logit_high_m2 = int_high_m2  + ser_high * ser + p1_high_m2 * p1 + p2_high_m2 * p2;
-
-    let prob_m2      = 1 / (1 + Math.exp(-logit_m2));
-    let prob_low_m2  = 1 / (1 + Math.exp(-logit_low_m2));
-    let prob_high_m2 = 1 / (1 + Math.exp(-logit_high_m2));
-    let risk_m2 = prob_m2 < 0.3 ? "Low Risk" : prob_m2 < 0.6 ? "Intermediate Risk" : "High Risk";
-
-    // ==============================================
-    // 显示控制
-    // ==============================================
-    document.getElementById("resultsContainer").style.display = "block";
-
-    // AL
-    if (showAL) {
-        document.getElementById("cardAL").classList.remove("d-none");
-        document.getElementById("prob1").textContent = `${(prob_m1*100).toFixed(1)}%`;
-        document.getElementById("ci1").textContent = `${(prob_low_m1*100).toFixed(1)}% – ${(prob_high_m1*100).toFixed(1)}%`;
-        document.getElementById("risk1").textContent = risk_m1;
-    } else {
-        document.getElementById("cardAL").classList.add("d-none");
-    }
-
-    // SER
-    if (showSER) {
-        document.getElementById("cardSER").classList.remove("d-none");
-        document.getElementById("prob2").textContent = `${(prob_m2*100).toFixed(1)}%`;
-        document.getElementById("ci2").textContent = `${(prob_low_m2*100).toFixed(1)}% – ${(prob_high_m2*100).toFixed(1)}%`;
-        document.getElementById("risk2").textContent = risk_m2;
-    } else {
-        document.getElementById("cardSER").classList.add("d-none");
-    }
-});
-</script>
+            document.getElementById('result').innerHTML = `
+                <h5>Prediction Result</h5>
+                <p>Predicted probability of gene-positive status: <strong>${(prob * 100).toFixed(1)}%</strong></p>
+                <p>95% Confidence Interval: <strong>${(prob_low * 100).toFixed(1)}% – ${(prob_high * 100).toFixed(1)}%</strong></p>
+                <p>Risk group: <strong>${riskGroup}</strong></p>
+            `;
+            document.getElementById('result').style.display = 'block';
+        });
+    </script>
 </body>
 </html>
