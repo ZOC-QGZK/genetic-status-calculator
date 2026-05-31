@@ -7,10 +7,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         body { background: #f8f9fa; font-family: Arial, sans-serif; padding: 20px; }
-        .container { max-width: 700px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 900px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; }
         .form-label { font-weight: bold; }
-        .result-box { margin-top: 25px; padding: 20px; border-radius: 8px; display: none; }
+        .result-card { margin-top: 20px; padding: 20px; border-radius: 8px; }
+        #resultsContainer { display: none; }
     </style>
 </head>
 <body>
@@ -18,19 +19,19 @@
         <h2>Gene-Positive Status Prediction</h2>
         <form id="predForm">
 
-            <!-- 单选框：只能选一个模型 -->
+            <!-- 模型选择（复选框） -->
             <div class="mb-3">
-                <label class="form-label">Select Prediction Model</label>
+                <label class="form-label">Select Model(s)</label>
                 <div class="form-check">
-                    <input class="form-check-input" type="radio" name="modelType" id="modelAL" value="AL" checked>
-                    <label class="form-check-label" for="modelAL">
-                        Model 1: AL + Parental Myopia
+                    <input class="form-check-input" type="checkbox" id="showAL" checked>
+                    <label class="form-check-label" for="showAL">
+                        AL Model (AL + Parents)
                     </label>
                 </div>
                 <div class="form-check">
-                    <input class="form-check-input" type="radio" name="modelType" id="modelSER" value="SER">
-                    <label class="form-check-label" for="modelSER">
-                        Model 2: SER + Parental Myopia
+                    <input class="form-check-input" type="checkbox" id="showSER" checked>
+                    <label class="form-check-label" for="showSER">
+                        SER Model (SER + Parents)
                     </label>
                 </div>
             </div>
@@ -57,12 +58,22 @@
             <button type="submit" class="btn btn-primary w-100">Calculate</button>
         </form>
 
-        <!-- 结果展示区 -->
-        <div id="resultBox" class="result-box bg-light border">
-            <h5 id="modelTitle" class="mb-3"></h5>
-            <p>Predicted probability: <strong id="probResult"></strong></p>
-            <p>95% CI: <strong id="ciResult"></strong></p>
-            <p>Risk group: <strong id="riskResult"></strong></p>
+        <div id="resultsContainer" class="mt-4">
+            <!-- AL 模型结果 -->
+            <div id="cardAL" class="result-card bg-light border d-none">
+                <h5 class="text-primary"><strong>AL Model (AL + Parents)</strong></h5>
+                <p>Predicted probability: <strong id="prob1"></strong></p>
+                <p>95% CI: <strong id="ci1"></strong></p>
+                <p>Risk group: <strong id="risk1"></strong></p>
+            </div>
+
+            <!-- SER 模型结果 -->
+            <div id="cardSER" class="result-card bg-light border d-none mt-3">
+                <h5 class="text-danger"><strong>SER Model (SER + Parents)</strong></h5>
+                <p>Predicted probability: <strong id="prob2"></strong></p>
+                <p>95% CI: <strong id="ci2"></strong></p>
+                <p>Risk group: <strong id="risk2"></strong></p>
+            </div>
         </div>
     </div>
 
@@ -70,84 +81,91 @@
 document.getElementById("predForm").addEventListener("submit", function(e) {
     e.preventDefault();
 
-    // 获取输入
     let al = parseFloat(document.getElementById("al").value);
     let ser = parseFloat(document.getElementById("ser").value);
     let parent = parseInt(document.getElementById("parent").value);
-    let model = document.querySelector('input[name="modelType"]:checked').value;
+    let showAL = document.getElementById("showAL").checked;
+    let showSER = document.getElementById("showSER").checked;
 
     let p1 = parent === 1 ? 1 : 0;
     let p2 = parent === 2 ? 1 : 0;
 
-    let prob, prob_low, prob_high, risk, modelTitle;
+    // ==============================================
+    // MODEL 1 (AL)
+    // ==============================================
+    let intercept_m1 = -6.8254811;
+    let coef_al = 0.2395629;
+    let coef_p1_m1 = 0.8192641;
+    let coef_p2_m1 = 3.2537814;
 
-    // ==============================
-    // MODEL 1: AL
-    // ==============================
-    if (model === "AL") {
-        let intercept = -6.8254811;
-        let coef_al = 0.2395629;
-        let coef_p1 = 0.8192641;
-        let coef_p2 = 3.2537814;
+    let int_low_m1  = -9.6910197;
+    let int_high_m1 = -4.0713708;
+    let al_low   = 0.1308751;
+    let al_high  = 0.3522766;
+    let p1_low_m1   = 0.3670655;
+    let p1_high_m1  = 1.2743566;
+    let p2_low_m1   = 2.3871699;
+    let p2_high_m1  = 4.3404146;
 
-        let int_low  = -9.6910197;
-        let int_high = -4.0713708;
-        let al_low   = 0.1308751;
-        let al_high  = 0.3522766;
-        let p1_low   = 0.3670655;
-        let p1_high  = 1.2743566;
-        let p2_low   = 2.3871699;
-        let p2_high  = 4.3404146;
+    let logit_m1      = intercept_m1 + coef_al * al + coef_p1_m1 * p1 + coef_p2_m1 * p2;
+    let logit_low_m1  = int_low_m1   + al_low * al   + p1_low_m1 * p1   + p2_low_m1 * p2;
+    let logit_high_m1 = int_high_m1  + al_high * al  + p1_high_m1 * p1  + p2_high_m1 * p2;
 
-        let logit      = intercept + coef_al * al + coef_p1 * p1 + coef_p2 * p2;
-        let logit_low  = int_low  + al_low * al  + p1_low * p1  + p2_low * p2;
-        let logit_high = int_high + al_high * al + p1_high * p1 + p2_high * p2;
+    let prob_m1      = 1 / (1 + Math.exp(-logit_m1));
+    let prob_low_m1  = 1 / (1 + Math.exp(-logit_low_m1));
+    let prob_high_m1 = 1 / (1 + Math.exp(-logit_high_m1));
+    let risk_m1 = prob_m1 < 0.3 ? "Low Risk" : prob_m1 < 0.6 ? "Intermediate Risk" : "High Risk";
 
-        prob      = 1 / (1 + Math.exp(-logit));
-        prob_low  = 1 / (1 + Math.exp(-logit_low));
-        prob_high = 1 / (1 + Math.exp(-logit_high));
-        risk = prob < 0.3 ? "Low Risk" : prob < 0.6 ? "Intermediate Risk" : "High Risk";
-        modelTitle = "Model 1: AL + Parental Myopia";
+    // ==============================================
+    // MODEL 2 (SER)
+    // ==============================================
+    let intercept_m2 = -1.6804534;
+    let coef_ser = -0.1288331;
+    let coef_p1_m2  = 0.8771313;
+    let coef_p2_m2  = 3.3234844;
+
+    let int_low_m2  = -2.1245372;
+    let int_high_m2 = -1.26045732;
+    let ser_low  = -0.1792309;
+    let ser_high = -0.08054952;
+    let p1_low_m2   = 0.4191054;
+    let p1_high_m2  = 1.33939522;
+    let p2_low_m2   = 2.4514526;
+    let p2_high_m2  = 4.41397944;
+
+    let logit_m2      = intercept_m2 + coef_ser * ser + coef_p1_m2 * p1 + coef_p2_m2 * p2;
+    let logit_low_m2  = int_low_m2   + ser_low * ser  + p1_low_m2 * p1  + p2_low_m2 * p2;
+    let logit_high_m2 = int_high_m2  + ser_high * ser + p1_high_m2 * p1 + p2_high_m2 * p2;
+
+    let prob_m2      = 1 / (1 + Math.exp(-logit_m2));
+    let prob_low_m2  = 1 / (1 + Math.exp(-logit_low_m2));
+    let prob_high_m2 = 1 / (1 + Math.exp(-logit_high_m2));
+    let risk_m2 = prob_m2 < 0.3 ? "Low Risk" : prob_m2 < 0.6 ? "Intermediate Risk" : "High Risk";
+
+    // ==============================================
+    // 显示控制
+    // ==============================================
+    document.getElementById("resultsContainer").style.display = "block";
+
+    // AL
+    if (showAL) {
+        document.getElementById("cardAL").classList.remove("d-none");
+        document.getElementById("prob1").textContent = `${(prob_m1*100).toFixed(1)}%`;
+        document.getElementById("ci1").textContent = `${(prob_low_m1*100).toFixed(1)}% – ${(prob_high_m1*100).toFixed(1)}%`;
+        document.getElementById("risk1").textContent = risk_m1;
+    } else {
+        document.getElementById("cardAL").classList.add("d-none");
     }
 
-    // ==============================
-    // MODEL 2: SER
-    // ==============================
-    else {
-        let intercept = -1.6804534;
-        let coef_ser = -0.1288331;
-        let coef_p1 = 0.8771313;
-        let coef_p2 = 3.3234844;
-
-        let int_low  = -2.1245372;
-        let int_high = -1.26045732;
-        let ser_low  = -0.1792309;
-        let ser_high = -0.08054952;
-        let p1_low   = 0.4191054;
-        let p1_high  = 1.33939522;
-        let p2_low   = 2.4514526;
-        let p2_high  = 4.41397944;
-
-        let logit      = intercept + coef_ser * ser + coef_p1 * p1 + coef_p2 * p2;
-        let logit_low  = int_low  + ser_low * ser  + p1_low * p1  + p2_low * p2;
-        let logit_high = int_high + ser_high * ser + p1_high * p1 + p2_high * p2;
-
-        prob      = 1 / (1 + Math.exp(-logit));
-        prob_low  = 1 / (1 + Math.exp(-logit_low));
-        prob_high = 1 / (1 + Math.exp(-logit_high));
-        risk = prob < 0.3 ? "Low Risk" : prob < 0.6 ? "Intermediate Risk" : "High Risk";
-        modelTitle = "Model 2: SER + Parental Myopia";
+    // SER
+    if (showSER) {
+        document.getElementById("cardSER").classList.remove("d-none");
+        document.getElementById("prob2").textContent = `${(prob_m2*100).toFixed(1)}%`;
+        document.getElementById("ci2").textContent = `${(prob_low_m2*100).toFixed(1)}% – ${(prob_high_m2*100).toFixed(1)}%`;
+        document.getElementById("risk2").textContent = risk_m2;
+    } else {
+        document.getElementById("cardSER").classList.add("d-none");
     }
-
-    // ==============================
-    // 显示结果
-    // ==============================
-    document.getElementById("modelTitle").textContent = modelTitle;
-    document.getElementById("probResult").textContent = (prob * 100).toFixed(1) + "%";
-    document.getElementById("ciResult").textContent = 
-        (prob_low * 100).toFixed(1) + "% – " + (prob_high * 100).toFixed(1) + "%";
-    document.getElementById("riskResult").textContent = risk;
-    document.getElementById("resultBox").style.display = "block";
 });
 </script>
 </body>
